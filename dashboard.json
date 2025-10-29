@@ -1,8 +1,8 @@
 {
-  "uid": "nvme-fleet-v1",
-  "title": "NVMe Fleet Monitor (Instance & Device)",
+  "uid": "nvme-fleet-v4",
+  "title": "NVMe Fleet Monitor (Overview + Per-Instance Detail, no EOL/Health)",
   "schemaVersion": 38,
-  "version": 1,
+  "version": 4,
   "editable": true,
   "timezone": "browser",
   "refresh": "30s",
@@ -19,7 +19,7 @@
         "multi": true,
         "refresh": 2,
         "sort": 1,
-        "description": "서버/노드 구분 라벨. 여러 개 선택 가능(기본: 전체)."
+        "description": "서버/노드 라벨(instance) — 여러 개 선택 가능(기본: 전체)"
       },
       {
         "name": "device",
@@ -31,7 +31,7 @@
         "multi": true,
         "refresh": 2,
         "sort": 2,
-        "description": "디바이스 라벨(nvme0n1 등). 여러 개 선택 가능(기본: 전체)."
+        "description": "디바이스 라벨(nvme0n1 등) — 여러 개 선택 가능(기본: 전체)"
       }
     ]
   },
@@ -39,166 +39,132 @@
   "panels": [
     {
       "type": "bargauge",
-      "title": "온도(°C) — 모든 인스턴스·디바이스",
-      "description": "각 instance/device의 현재 컨트롤러 온도. 임계: 60°C 경고, 80°C 치명.",
-      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "title": "온도(°C) — 전체",
+      "description": "각 instance/device의 현재 컨트롤러 온도",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 7 },
       "targets": [
-        {
-          "expr": "nvme_temperature{instance=~\"$instance\", device=~\"$device\"}",
-          "legendFormat": "{{instance}} {{device}}",
-          "instant": true
-        }
+        { "expr": "nvme_temperature{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{instance}} {{device}}", "instant": true }
       ],
       "options": { "displayMode": "gradient", "orientation": "horizontal" },
       "fieldConfig": {
         "defaults": {
           "unit": "celsius",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green" },
-              { "color": "orange", "value": 60 },
-              { "color": "red", "value": 80 }
-            ]
-          }
-        },
-        "overrides": []
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green" }, { "color": "orange", "value": 60 }, { "color": "red", "value": 80 } ] }
+        }
       }
     },
     {
       "type": "bargauge",
-      "title": "수명 사용률(%) — 모든 인스턴스·디바이스",
-      "description": "nvme_percentage_used = 내구 수명 사용률. 70% 경고, 90% 치명.",
-      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "title": "스페어(%) — 전체",
+      "description": "예비 블록 여유율(available_spare). threshold 이하면 위험",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 7 },
       "targets": [
-        {
-          "expr": "nvme_percentage_used{instance=~\"$instance\", device=~\"$device\"}",
-          "legendFormat": "{{instance}} {{device}}",
-          "instant": true
-        }
-      ],
-      "options": { "displayMode": "gradient", "orientation": "horizontal" },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "max": 100,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green" },
-              { "color": "orange", "value": 70 },
-              { "color": "red", "value": 90 }
-            ]
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "bargauge",
-      "title": "스페어(%) — 모든 인스턴스·디바이스",
-      "description": "nvme_available_spare = 예비 블록 여유율. threshold 이하면 위험.",
-      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
-      "targets": [
-        {
-          "expr": "nvme_available_spare{instance=~\"$instance\", device=~\"$device\"}",
-          "legendFormat": "{{instance}} {{device}}",
-          "instant": true
-        }
+        { "expr": "nvme_available_spare{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{instance}} {{device}}", "instant": true }
       ],
       "options": { "displayMode": "basic", "orientation": "horizontal" },
       "fieldConfig": {
         "defaults": {
           "unit": "percent",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red" },
-              { "color": "yellow", "value": 10 },
-              { "color": "green", "value": 20 }
-            ]
-          }
-        },
-        "overrides": []
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red" }, { "color": "yellow", "value": 10 }, { "color": "green", "value": 20 } ] }
+        }
       }
-    },
-    {
-      "type": "table",
-      "title": "건강 스냅샷 — 온도/스페어/수명/TBW/경고 (최신)",
-      "description": "모든 instance/device의 최신 주요 지표를 한 표로. Prometheus instant 쿼리 + 라벨 컬럼 표시.",
-      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
-      "targets": [
-        { "expr": "nvme_temperature{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "temperature", "instant": true },
-        { "expr": "nvme_available_spare{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "available_spare", "instant": true },
-        { "expr": "nvme_percentage_used{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "percentage_used", "instant": true },
-        { "expr": "nvme_tbw_terabytes{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "tbw_terabytes", "instant": true },
-        { "expr": "nvme_critical_warning{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "critical_warning", "instant": true }
-      ],
-      "options": {
-        "showHeader": true,
-        "footer": { "show": false }
-      },
-      "transformations": [
-        { "id": "seriesToRows" }
-      ],
-      "fieldConfig": { "defaults": {}, "overrides": [] }
-    },
-
-    {
-      "type": "row",
-      "title": "인스턴스별 상세 (반복)",
-      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 1 },
-      "repeat": "instance",
-      "panels": []
     },
     {
       "type": "bargauge",
-      "title": "[${instance}] 디바이스 현재 온도(°C)",
-      "description": "선택된 인스턴스의 모든 디바이스 온도. 빠른 비교용.",
-      "gridPos": { "x": 0, "y": 17, "w": 8, "h": 7 },
-      "repeatDirection": "h",
+      "title": "수명 사용률(%) — 전체",
+      "description": "percentage_used(SSD 내구 수명 지표)",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 7 },
       "targets": [
-        {
-          "expr": "nvme_temperature{instance=~\"$instance\", device=~\"$device\"}",
-          "legendFormat": "{{device}}",
-          "instant": true
-        }
+        { "expr": "nvme_percentage_used{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{instance}} {{device}}", "instant": true }
       ],
+      "options": { "displayMode": "gradient", "orientation": "horizontal" },
       "fieldConfig": {
         "defaults": {
-          "unit": "celsius",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green" },
-              { "color": "orange", "value": 60 },
-              { "color": "red", "value": 80 }
-            ]
-          }
-        },
-        "overrides": []
+          "unit": "percent",
+          "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green" }, { "color": "orange", "value": 70 }, { "color": "red", "value": 90 } ] }
+        }
       }
     },
+
     {
       "type": "timeseries",
-      "title": "[${instance}] 컨트롤러 온도 추세",
-      "description": "nvme_temperature 시계열. 디바이스별 라인.",
-      "gridPos": { "x": 8, "y": 17, "w": 16, "h": 7 },
+      "title": "온도 트렌드 — 전체",
+      "description": "nvme_temperature 시계열(선택된 instance/device 전체)",
+      "gridPos": { "x": 0, "y": 7, "w": 12, "h": 9 },
       "targets": [
-        {
-          "expr": "nvme_temperature{instance=~\"$instance\", device=~\"$device\"}",
-          "legendFormat": "{{device}}"
-        }
+        { "expr": "nvme_temperature{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{instance}} {{device}}" }
       ],
       "fieldConfig": { "defaults": { "unit": "celsius" } },
       "options": { "legend": { "showLegend": true, "displayMode": "list", "placement": "bottom" } }
     },
     {
       "type": "timeseries",
-      "title": "[${instance}] 센서 온도(1/2) 추세",
-      "description": "nvme_temperature_sensor_1 / _2 시계열.",
-      "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
+      "title": "수명 사용률 트렌드 — 전체",
+      "description": "nvme_percentage_used 시계열",
+      "gridPos": { "x": 12, "y": 7, "w": 12, "h": 9 },
+      "targets": [
+        { "expr": "nvme_percentage_used{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{instance}} {{device}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent" } },
+      "options": { "legend": { "showLegend": true, "displayMode": "list", "placement": "bottom" } }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "TBW 트렌드 — 전체",
+      "description": "nvme_tbw_terabytes 시계열",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "nvme_tbw_terabytes{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{instance}} {{device}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "options": { "legend": { "showLegend": true, "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "IO 증가량(5m) — 전체",
+      "description": "increase(nvme_data_units_read|written[5m]) — 최근 5분 IO 활동도",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "increase(nvme_data_units_read{instance=~\"$instance\", device=~\"$device\"}[5m])", "legendFormat": "{{instance}} {{device}} read Δ" },
+        { "expr": "increase(nvme_data_units_written{instance=~\"$instance\", device=~\"$device\"}[5m])", "legendFormat": "{{instance}} {{device}} write Δ" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "options": { "legend": { "showLegend": true, "displayMode": "list", "placement": "bottom" } }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Thermal Mgmt (전이/시간) — 전체",
+      "description": "최근 스로틀링 징후 확인 (전이 증가량/시간 증가율)",
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 8 },
+      "targets": [
+        { "expr": "increase(nvme_thermal_mgmt_t1_trans{instance=~\"$instance\", device=~\"$device\"}[10m])", "legendFormat": "{{instance}} {{device}} t1_trans(Δ10m)" },
+        { "expr": "increase(nvme_thermal_mgmt_t2_trans{instance=~\"$instance\", device=~\"$device\"}[10m])", "legendFormat": "{{instance}} {{device}} t2_trans(Δ10m)" },
+        { "expr": "rate(nvme_thermal_mgmt_t1_time{instance=~\"$instance\", device=~\"$device\"}[5m])", "legendFormat": "{{instance}} {{device}} t1_time rate" },
+        { "expr": "rate(nvme_thermal_mgmt_t2_time{instance=~\"$instance\", device=~\"$device\"}[5m])", "legendFormat": "{{instance}} {{device}} t2_time rate" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "options": { "legend": { "showLegend": true, "displayMode": "list", "placement": "bottom" } }
+    },
+
+    { "type": "row", "title": "인스턴스별 상세 (반복)", "gridPos": { "x": 0, "y": 32, "w": 24, "h": 1 }, "repeat": "instance", "panels": [] },
+
+    {
+      "type": "timeseries",
+      "title": "[${instance}] 디바이스별 온도",
+      "gridPos": { "x": 0, "y": 33, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "nvme_temperature{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{device}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "celsius" } },
+      "options": { "legend": { "showLegend": true, "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "[${instance}] 센서 온도(1/2)",
+      "gridPos": { "x": 12, "y": 33, "w": 12, "h": 8 },
       "targets": [
         { "expr": "nvme_temperature_sensor_1{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{device}} s1" },
         { "expr": "nvme_temperature_sensor_2{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{device}} s2" }
@@ -208,9 +174,18 @@
     },
     {
       "type": "timeseries",
+      "title": "[${instance}] 수명 사용률(%)",
+      "gridPos": { "x": 0, "y": 41, "w": 8, "h": 8 },
+      "targets": [
+        { "expr": "nvme_percentage_used{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{device}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent" } },
+      "options": { "legend": { "showLegend": true, "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "type": "timeseries",
       "title": "[${instance}] IO 증가량(5m)",
-      "description": "increase(nvme_data_units_read|written[5m]) — 최근 5분 IO 활동도.",
-      "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
+      "gridPos": { "x": 8, "y": 41, "w": 8, "h": 8 },
       "targets": [
         { "expr": "increase(nvme_data_units_read{instance=~\"$instance\", device=~\"$device\"}[5m])", "legendFormat": "{{device}} read Δ" },
         { "expr": "increase(nvme_data_units_written{instance=~\"$instance\", device=~\"$device\"}[5m])", "legendFormat": "{{device}} write Δ" }
@@ -219,48 +194,27 @@
       "options": { "legend": { "showLegend": true, "displayMode": "list", "placement": "bottom" } }
     },
     {
-      "type": "stat",
-      "title": "[${instance}] 스페어/수명(현재)",
-      "description": "스페어(%)와 수명 사용률(%) 현재값 비교.",
-      "gridPos": { "x": 0, "y": 32, "w": 8, "h": 6 },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "values": true }, "textMode": "value_and_name" },
+      "type": "timeseries",
+      "title": "[${instance}] Thermal Mgmt (전이/시간)",
+      "gridPos": { "x": 16, "y": 41, "w": 8, "h": 8 },
       "targets": [
-        { "expr": "nvme_available_spare{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{device}} spare%" },
-        { "expr": "nvme_percentage_used{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{device}} used%" }
+        { "expr": "increase(nvme_thermal_mgmt_t1_trans{instance=~\"$instance\", device=~\"$device\"}[10m])", "legendFormat": "{{device}} t1_trans(Δ10m)" },
+        { "expr": "increase(nvme_thermal_mgmt_t2_trans{instance=~\"$instance\", device=~\"$device\"}[10m])", "legendFormat": "{{device}} t2_trans(Δ10m)" },
+        { "expr": "rate(nvme_thermal_mgmt_t1_time{instance=~\"$instance\", device=~\"$device\"}[5m])", "legendFormat": "{{device}} t1_time rate" },
+        { "expr": "rate(nvme_thermal_mgmt_t2_time{instance=~\"$instance\", device=~\"$device\"}[5m])", "legendFormat": "{{device}} t2_time rate" }
       ],
-      "fieldConfig": {
-        "defaults": { "unit": "percent" },
-        "overrides": []
-      }
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "options": { "legend": { "showLegend": true, "displayMode": "list", "placement": "bottom" } }
     },
     {
-      "type": "stat",
+      "type": "timeseries",
       "title": "[${instance}] TBW (누적 TB)",
-      "description": "nvme_tbw_terabytes 현재값. 교체·용량 계획 참고.",
-      "gridPos": { "x": 8, "y": 32, "w": 8, "h": 6 },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "values": true }, "textMode": "value_and_name" },
+      "gridPos": { "x": 0, "y": 49, "w": 24, "h": 8 },
       "targets": [
-        { "expr": "nvme_tbw_terabytes{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{device}} TBW" }
+        { "expr": "nvme_tbw_terabytes{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{device}}" }
       ],
-      "fieldConfig": {
-        "defaults": { "unit": "short", "decimals": 3 },
-        "overrides": []
-      }
-    },
-    {
-      "type": "stat",
-      "title": "[${instance}] Critical / Thermal",
-      "description": "critical_warning(0/1), thermal t1/t2 전이/시간 (최근 상태 파악은 increase/rate 패널 추가 권장).",
-      "gridPos": { "x": 16, "y": 32, "w": 8, "h": 6 },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "values": true }, "textMode": "value_and_name" },
-      "targets": [
-        { "expr": "nvme_critical_warning{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{device}} crit" },
-        { "expr": "nvme_thermal_mgmt_t1_trans{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{device}} t1_trans" },
-        { "expr": "nvme_thermal_mgmt_t2_trans{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{device}} t2_trans" },
-        { "expr": "nvme_thermal_mgmt_t1_time{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{device}} t1_time" },
-        { "expr": "nvme_thermal_mgmt_t2_time{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{device}} t2_time" }
-      ],
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "options": { "legend": { "showLegend": true, "displayMode": "list", "placement": "bottom" } }
     }
   ]
 }
