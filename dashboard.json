@@ -1,0 +1,184 @@
+{
+  "uid": "nvme-smart-inst",
+  "title": "NVMe SMART Metrics (by Instance & Device)",
+  "schemaVersion": 38,
+  "version": 2,
+  "editable": true,
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "instance",
+        "type": "query",
+        "datasource": null,
+        "query": "label_values(nvme_temperature, instance)",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "refresh": 2,
+        "sort": 1,
+        "description": "Prometheus 라벨 `instance`로 서버/노드를 선택합니다. 기본은 전체(.*)입니다."
+      },
+      {
+        "name": "device",
+        "type": "query",
+        "datasource": null,
+        "query": "label_values(nvme_temperature{instance=~\"$instance\"}, device)",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "refresh": 2,
+        "sort": 2,
+        "description": "선택한 instance 내 NVMe 디바이스(`nvme0n1` 등)를 선택합니다. 기본은 전체(.*)입니다."
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Temperature (°C)",
+      "description": "현재 NVMe 컨트롤러 온도(nvme_temperature). 60°C 경고, 80°C 이상 치명. 장시간 고온은 스로틀링·수명 저하를 유발합니다.",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 6 },
+      "targets": [
+        { "expr": "nvme_temperature{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{instance}} {{device}}" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green" }, { "color": "orange", "value": 60 }, { "color": "red", "value": 80 } ] }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Percentage Used (%)",
+      "description": "SSD 수명 지표(nvme_percentage_used). 70% 경고, 90% 치명. 교체·데이터 마이그레이션 계획에 활용하세요.",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 6 },
+      "targets": [
+        { "expr": "nvme_percentage_used{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{instance}} {{device}}" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green" }, { "color": "orange", "value": 70 }, { "color": "red", "value": 90 } ] }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Available Spare (%)",
+      "description": "남은 스페어 비율(nvme_available_spare). 10% 미만이면 경고. 예비 블록 고갈 위험을 의미합니다.",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 6 },
+      "targets": [
+        { "expr": "nvme_available_spare{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{instance}} {{device}}" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red" }, { "color": "yellow", "value": 10 }, { "color": "green", "value": 20 } ] }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Critical Warning",
+      "description": "nvme_critical_warning (0/1). 1이면 장치 자체가 치명 상태를 보고합니다. SMART 세부 항목을 즉시 점검하세요.",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 6 },
+      "targets": [
+        { "expr": "nvme_critical_warning{instance=~\"$instance\", device=~\"$device\"}" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green" }, { "color": "red", "value": 1 } ] }
+        },
+        "overrides": []
+      }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Temperature Sensors (°C)",
+      "description": "센서별 온도 추세(nvme_temperature_sensor_1/2). 갑작스런 상승·편차는 냉각 이슈를 의심하세요.",
+      "gridPos": { "x": 0, "y": 6, "w": 12, "h": 10 },
+      "targets": [
+        { "expr": "nvme_temperature_sensor_1{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{instance}} {{device}} sensor_1" },
+        { "expr": "nvme_temperature_sensor_2{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{instance}} {{device}} sensor_2" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "celsius" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Read/Write Delta (5m increase)",
+      "description": "최근 5분간 데이터 단위 증가량(increase). 워크로드 활동도를 반영합니다.\n• Read: increase(nvme_data_units_read[5m])\n• Write: increase(nvme_data_units_written[5m])",
+      "gridPos": { "x": 12, "y": 6, "w": 12, "h": 10 },
+      "targets": [
+        { "expr": "increase(nvme_data_units_read{instance=~\"$instance\", device=~\"$device\"}[5m])", "legendFormat": "{{instance}} {{device}} read Δ" },
+        { "expr": "increase(nvme_data_units_written{instance=~\"$instance\", device=~\"$device\"}[5m])", "legendFormat": "{{instance}} {{device}} written Δ" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } }
+    },
+
+    {
+      "type": "stat",
+      "title": "Total Bytes Written (TBW)",
+      "description": "누적 쓰기량(nvme_tbw_terabytes). 교체 주기 추정과 가용성 계획에 활용하세요.",
+      "gridPos": { "x": 0, "y": 16, "w": 6, "h": 7 },
+      "targets": [
+        { "expr": "nvme_tbw_terabytes{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "{{instance}} {{device}}" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": { "defaults": { "decimals": 3, "unit": "short", "min": 0 }, "overrides": [] }
+    },
+    {
+      "type": "stat",
+      "title": "Thermal Mgmt (t1/t2 transitions)",
+      "description": "열 스로틀링 진입 누적 횟수. 값이 증가하면 최근 스로틀링 발생.\n• t1_trans: 완만한 스로틀링\n• t2_trans: 강한 스로틀링",
+      "gridPos": { "x": 6, "y": 16, "w": 6, "h": 7 },
+      "targets": [
+        { "expr": "nvme_thermal_mgmt_t1_trans{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "t1_trans" },
+        { "expr": "nvme_thermal_mgmt_t2_trans{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "t2_trans" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "values": true } },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "type": "stat",
+      "title": "Thermal Mgmt Time (sec)",
+      "description": "열 스로틀링 상태 체류 누적 시간(초). rate()로 보면 현재 진행 여부를 판단할 수 있습니다.\n• t1_time: 완만한 스로틀링 시간\n• t2_time: 강한 스로틀링 시간",
+      "gridPos": { "x": 12, "y": 16, "w": 6, "h": 7 },
+      "targets": [
+        { "expr": "nvme_thermal_mgmt_t1_time{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "t1_time" },
+        { "expr": "nvme_thermal_mgmt_t2_time{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "t2_time" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "values": true } },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] }
+    },
+    {
+      "type": "table",
+      "title": "Raw NVMe Metrics (Latest)",
+      "description": "핵심 원시 지표의 최신값 모음. 빠른 상황 파악용.",
+      "gridPos": { "x": 18, "y": 16, "w": 6, "h": 7 },
+      "transformations": [ { "id": "seriesToColumns", "options": { "byField": "Time" } } ],
+      "targets": [
+        { "expr": "nvme_temperature{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "temperature" },
+        { "expr": "nvme_available_spare{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "available_spare" },
+        { "expr": "nvme_percentage_used{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "percentage_used" },
+        { "expr": "nvme_tbw_terabytes{instance=~\"$instance\", device=~\"$device\"}", "legendFormat": "tbw_terabytes" }
+      ],
+      "options": { "showHeader": true, "footer": { "show": false } },
+      "fieldConfig": { "defaults": {}, "overrides": [] }
+    }
+  ],
+  "annotations": { "list": [] }
+}
