@@ -11,7 +11,70 @@ NVMe Exporter는 서버의 NVMe 디스크 상태 및 SMART 정보를 Prometheus 
 ## 사용법
 
 ```bash
-python server.py [디바이스명 ...] [옵션]
+wget https://raw.githubusercontent.com/jhl-labs/nvme-exporter/refs/heads/main/server.py
+python server.py --device-all --port 8080 --sudo
+```
+
+만약 k8s 내 prometheus에서 스크랩을 하려면 다음의 리소스를 만듭니다
+```yaml
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: mynode-nvme-metrics
+  namespace: node-systems
+subsets:
+  - addresses:
+      - ip: 12.34.56.78
+    ports:
+      - name: metrics
+        port: 8080
+        protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: python-nvme-metrics
+  name: mynode-nvme-metrics   # 앞서 만든 Endpoints와 일치
+  namespace: node-systems
+spec:
+  ports:
+    - name: metrics
+      port: 80
+      protocol: TCP
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    release: rancher-monitoring
+  name: nvme-metrics-sm
+  namespace: node-systems
+spec:
+  endpoints:
+    - interval: 30s
+      path: /metrics
+      port: metrics
+#      relabelings:        # 이건 각자 상황에 맞게 커스텀 필요
+#        - action: replace
+#          replacement: proxmox-node1
+#          targetLabel: server
+#        - action: replace
+#          regex: (.+):\d+
+#          replacement: ${1}
+#          sourceLabels:
+#            - __address__
+#          targetLabel: instance
+  namespaceSelector:
+    matchNames:
+      - node-systems
+  selector:
+    matchLabels:
+      app: python-nvme-metrics
+
+
 ```
 
 ### 주요 옵션
